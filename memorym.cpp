@@ -51,8 +51,8 @@ void CentralNode::handle_endChild2(struct msg *endCh){
         pending[curent.ref].push_back(curent);
     }
     // send request to des node to obtain address later
-    MPI_Send(&curent, 1, msg_type, 
-             curent.node_d, TAG, MPI_COMM_WORLD);
+    //MPI_Send(&curent, 1, msg_type, 
+     //        curent.node_d, TAG, MPI_COMM_WORLD);
 }
 
 void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = CentralNode makes 
@@ -67,6 +67,9 @@ void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = Centr
     int ideb_i;
     struct msg req(0,0,0,0,0,0,0,0,0);
     struct msg endCh(0,0,0,0,0,0,0,0,0);
+    int ideb, ifin;
+
+    inf->ntot = n;
     for(int i=0; i<inf->nproc; i++){
         if(i!=CENTRAL_NODE){
             if(i<R){
@@ -80,18 +83,32 @@ void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = Centr
                 ref_alea = rand()%nloc_i + ideb_i+1;//ref according to the rank CentralNode gonna send 
             }
             req.type=REQUEST;
-            req.ref=1;
             req.node_d=i;
+	    /*if (i < R) {
+		ideb = i* (Q+1);
+		ifin = ideb + nloc;
+	    } else{
+		ideb = R * (Q+1) + (i- R) * Q;
+		ifin = ideb + nloc;
+	    }*/
+            req.ref=ref_alea;
             req.node = rand()%(inf->nproc);//origin node aleatoire
             while(req.node == CENTRAL_NODE || req.node == req.node_d){
                 req.node = rand()%(inf->nproc);
             }
             req.rw=R;
+            if(i==inf->nproc/2){
+		req.rw=W;	
+	    }
             req.id=i;
             req.idp=0;
             endCh.type=END_CHILD;
-            endCh.ref=1;
             endCh.node_d=i;
+
+
+
+            endCh.ref=ref_alea;
+
             endCh.rw=req.rw;
             endCh.id=req.id;
             endCh.idp=req.id;
@@ -99,6 +116,7 @@ void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = Centr
             if(mode == DIRECT){
                 inf->cn.add(&req);
                 inf->cn.handle_endChild2(&endCh);
+		//MPI_Send() anactive in handle_Child !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 MPI_Send(&req,1, msg_type, i, TAG, MPI_COMM_WORLD);
             }
             /*else{
@@ -161,14 +179,14 @@ void handle_address_node(struct msg *curent, struct info *inf){
     ranks[0] = curent->node;//for forming groups, later
     ranks[1] = curent->node_d;
     MPI_Comm_group(MPI_COMM_WORLD,&comm_group);
-    if(curent->rw==W){//write
+    /*if(curent->rw==W){//write
         if (inf->rank == curent->node_d){//target node
             MPI_Win_create(&inf->n.mem_local[curent->ref].val,
                            sizeof(int),sizeof(int), 
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
 
-        else /*if(inf->rank == curent->node)*/{
+        else //if(inf->rank == curent->node){
             MPI_Win_create(NULL,0,sizeof(int),
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
@@ -207,7 +225,7 @@ void handle_address_node(struct msg *curent, struct info *inf){
         }
     }
     //else//{//read
-        /*if (inf->rank == curent->node_d){//target node
+        if (inf->rank == curent->node_d){//target node
             MPI_Win_create(&inf->n.mem_local[curent->ref].val,
                            sizeof(int),sizeof(int), //the data is 
                                                     //representing by a int
@@ -278,20 +296,20 @@ void CentralNode::end_task(struct msg* et){
     add_sent_ornot.erase(it_to_erase);
 
     if(!pending[et->ref].empty()){//if the list isn't empty
-        //launch analysis to check if dependances still remain
+        			 //launch analysis to check if dependances still remain
         CentralNode::analyse_list(et->ref);
     }
 }
 
 void CentralNode::analyse_list(int ref){
     
-    if(pending_w[ref]){//pending write
+    if(!pending_w[ref]){//pending write
        //waiting endTask of the pending_w, not necessary the continnue 
        //checking the list
        return;
     }
     else{//no pending write
-        for(auto it = pending[ref].begin(); it == pending[ref].end();it++){
+        for(auto it = pending[ref].begin(); it != pending[ref].end();it++){
             if(it->rw == R){//analyse a read
                 if(add_sent_ornot[it->id]){//address not already sent
                     struct msg msg_add = *it;
@@ -454,7 +472,7 @@ void listening(struct info *inf){
 void listening_node(struct info *inf){
     MPI_Status status;
     
-    struct msg buf(0,0,0,0,0,0,0,0,0);        ;
+    struct msg buf(0,0,0,0,0,0,0,0,0); 
     //Recv from random node a msg from random type
     while(1){
         MPI_Recv(&buf, 1, msg_type, MPI_ANY_SOURCE, TAG, 
@@ -473,6 +491,8 @@ void listening_node(struct info *inf){
             }
             break;
         }
+	if(buf.type==END_SIMU)
+		break;
     }
     //add msg to the tree if it is a request
     //trigger analyse if it a endChild msg

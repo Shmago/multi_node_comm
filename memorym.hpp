@@ -17,7 +17,6 @@ public:
     std::map<int,int> pending_w; //couple of ref, pending_w
     std::map<int,int> add_sent_ornot; //to know if a address for a request 
                                       //has been already sent
-    std::vector<std::vector<struct msg> > task;
     // sort request depth first
     void add(struct msg *r);
     void handle_endChild2(struct msg*add_recv);

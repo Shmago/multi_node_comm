@@ -26,7 +26,7 @@ int main(int argc, char **argv){
 
     MPI_Comm_size(MPI_COMM_WORLD, &(inf.nproc));
     MPI_Comm_rank(MPI_COMM_WORLD, &(inf.rank));
-    int size = 2;
+    int size = inf.nproc-1;
     init_memory(size, &inf);
     MPI_Barrier(MPI_COMM_WORLD);
     if(inf.rank != CENTRAL_NODE){
@@ -35,6 +35,12 @@ int main(int argc, char **argv){
     else{
         send_first_message(&inf, size, DIRECT);
         listening(&inf);
+	struct msg end(END_SIMU,0,0,0,0,0,0,0,0);
+	for(int i=0; i<inf.nproc;i++){
+		if(i!=CENTRAL_NODE){
+			MPI_Send(&end, 1, msg_type, i, TAG, MPI_COMM_WORLD); 
+		}
+	}
     } 
     MPI_Type_free(&msg_type);
     MPI_Finalize();
