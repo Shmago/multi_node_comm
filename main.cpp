@@ -30,12 +30,29 @@ int main(int argc, char **argv){
     init_memory(size, &inf);
     MPI_Barrier(MPI_COMM_WORLD);
     if(inf.rank != CENTRAL_NODE){
-        listening_node(&inf);
+            listening_node(&inf);
     }
     else{
-        send_first_message(&inf, size, DIRECT);
-        listening(&inf);
+        std::string s;
+        std::ofstream of("sortie.txt", std::ios::out | std::ios::trunc);
+        std::ifstream f("food.txt", std::ios::in);
+        if(f && of){
+            feed(&inf, f, of);
+        }
+        else{
+            std::cout << "FAIL FEEDING!" << std::endl;
+        }
+        f.close();
+        of.close();
+        //send_first_message(&inf, size, DIRECT);
 	struct msg end(END_SIMU,0,0,0,0,0,0,0,0);
+    for(auto a : inf.cn.forest[1]){
+        std::cout <<  a.id << std::endl;
+    }
+    std::cout << std::endl;
+    for(auto a : inf.cn.forest[2]){
+        std::cout <<  a.id << std::endl;
+    }
 	for(int i=0; i<inf.nproc;i++){
 		if(i!=CENTRAL_NODE){
 			MPI_Send(&end, 1, msg_type, i, TAG, MPI_COMM_WORLD); 

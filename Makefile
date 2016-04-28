@@ -1,5 +1,5 @@
 CC := mpic++
-FLAGS := -Wall -std=c++0x
+FLAGS := -Wall -std=c++11
 TARGET := main
 
 all: $(TARGET)

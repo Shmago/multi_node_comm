@@ -20,6 +20,7 @@ enum msg_type{MSG, REQUEST, END_CHILD, ADD, END_TASK, ASKING_END, END_SIMU};
 
 
 struct msg{
+    msg(){};
     msg(int a, int b, int c, int d, int e, int f, int i, int j,int k){
         type=a; 
         ref=b; 

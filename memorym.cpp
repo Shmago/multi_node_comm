@@ -2,8 +2,53 @@
 #include <mpi.h>
 #include "memorym.hpp"
 #include <time.h>
+#include <string>
 
 extern MPI_Datatype msg_type;
+
+/*void open_file(std::ifstream f, std::string s){
+
+}*/
+
+void feed(struct info* inf, std::ifstream &f, std::ofstream& of){
+
+    std::string ligne;  
+    //int type, ref ,idp, rw, add, id, node, node_d;
+    int end_epoc;
+    struct msg req;
+    inf->cpt_end_epoc=0;
+    while(end_epoc != 2){
+
+        f >> req.type >> req.ref >> req.idp >> req.rw >> req.add >> req.id 
+          >> req.node >> req.node_d >> end_epoc; 
+
+        if(req.rw == 0){
+            req.rw = R;
+        }
+        else if(req.rw == 1){
+            req.rw = W;
+        }
+        else{
+            req.rw = RW;
+        }
+        
+        if(req.type == 1){//end_child req
+            inf->cpt_end_epoc++;
+            req.type = END_CHILD;
+            inf->cn.handle_endChild2(&req);
+        }
+        else if(req.type == 0){
+            req.type = REQUEST;
+            inf->cn.add(&req);
+        }
+        else{return;}
+        if(end_epoc == 1){
+            listening(inf, of);
+            inf->cpt_end_epoc=0;
+            continue;
+        }
+    }
+}
 
 //init memory with a uniq global reference
 //size correspond to the total number of ref
@@ -23,14 +68,14 @@ void init_memory(int size, struct info *inf){
 }
 
 void CentralNode::handle_endChild2(struct msg *endCh){
-    
     //the req's end_child potentially doesn't come contigusly
     struct msg curent(0,0,0,0,0,0,0,0,0);
     std::pair<int, int> sendornot = std::make_pair(endCh->id, 1);
     add_sent_ornot.insert(sendornot);//precise that the address that 
-                                          //will be recv isn't sent yet
+                                     //will be recv isn't sent yet
     if(endCh->idp == forest[endCh->ref].back().id){//if child of the last task
                                                    //without parent
+                                                   //printf("DOUC\n");
         curent = forest[endCh->ref].back();
     }
     else{
@@ -51,8 +96,8 @@ void CentralNode::handle_endChild2(struct msg *endCh){
         pending[curent.ref].push_back(curent);
     }
     // send request to des node to obtain address later
-    //MPI_Send(&curent, 1, msg_type, 
-     //        curent.node_d, TAG, MPI_COMM_WORLD);
+    MPI_Send(&curent, 1, msg_type, 
+             curent.node_d, TAG, MPI_COMM_WORLD);
 }
 
 void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = CentralNode makes 
@@ -71,7 +116,7 @@ void send_first_message(struct info *inf, int n, int mode){//mode DIRECT = Centr
 
     inf->ntot = n;
     for(int i=0; i<inf->nproc; i++){
-        if(i!=CENTRAL_NODE){
+        if(i!= CENTRAL_NODE){
             if(i<R){
                 nloc_i = Q+1;
                 ideb_i = i* (Q+1);
@@ -163,7 +208,13 @@ void init_info(int n, struct info *inf) {
 
 void handle_request_node(struct msg *curent, struct info *inf){ //node receving 
                                                              //asking addresses
-    int a = inf->n.mem_local[curent->ref].add;
+    //if(n.mem_local[curent->ref].count() != 0){
+        int a = inf->n.mem_local[curent->ref].add;
+    //}
+    //else{
+        //std::cout<< "NINE MAUVAISE REF" << std::endl;
+     //   return;
+    //}
     struct msg msg_add = *curent;
     msg_add.type=ADD;
     msg_add.add=a;
@@ -176,7 +227,7 @@ void handle_address_node(struct msg *curent, struct info *inf){
     MPI_Win win;
     MPI_Group comm_group, group;
     int ranks[2];
-    ranks[0] = curent->node;//for forming groups, later
+    ranks[0] = curent->node;    //for forming groups, later
     ranks[1] = curent->node_d;
     MPI_Comm_group(MPI_COMM_WORLD,&comm_group);
     /*if(curent->rw==W){//write
@@ -278,15 +329,20 @@ void handle_address_node(struct msg *curent, struct info *inf){
         end_t.type = END_TASK;
         MPI_Send(&end_t, 1, msg_type, 
                      CENTRAL_NODE, TAG, MPI_COMM_WORLD);
-        printf("ACTION RANK %d\n\n", inf->rank);
+        if(curent->rw == W){
+            printf("ACTION WRITE RANK %d\n\n", inf->rank);
+        }
+        else{
+            printf("ACTION READ RANK %d\n\n", inf->rank);
+        }
 }
 
-void CentralNode::end_task(struct msg* et){
+void CentralNode::end_task(struct msg* et, std::ofstream &of){
     if(et->rw == W){//write's end
             pending_w[et->ref]=1;//no more write pending
     }
                                        //end_task's req
-    auto to_erase= std::find_if(pending[et->ref].begin(), 
+    auto to_erase = std::find_if(pending[et->ref].begin(), 
                            pending[et->ref].end(), 
                            [&et] (struct msg& v) {
                                 return v.id == et->id;
@@ -297,11 +353,11 @@ void CentralNode::end_task(struct msg* et){
 
     if(!pending[et->ref].empty()){//if the list isn't empty
         			 //launch analysis to check if dependances still remain
-        CentralNode::analyse_list(et->ref);
+        CentralNode::analyse_list(et->ref, of);
     }
 }
 
-void CentralNode::analyse_list(int ref){
+void CentralNode::analyse_list(int ref, std::ofstream &of){
     
     if(!pending_w[ref]){//pending write
        //waiting endTask of the pending_w, not necessary the continnue 
@@ -320,6 +376,7 @@ void CentralNode::analyse_list(int ref){
                     MPI_Send(&msg_add, 1, msg_type, 
                              it->node, TAG, MPI_COMM_WORLD);
                              add_sent_ornot[it->id] = 0;
+                    of << msg_add.id << std::endl;
                 }
                 else{//add already send)
                     continue;
@@ -338,6 +395,7 @@ void CentralNode::analyse_list(int ref){
                         MPI_Send(&msg_add, 1, msg_type, 
                                  it->node, TAG, MPI_COMM_WORLD);
                         add_sent_ornot[it->id] = 0;//useless only usefeull for     
+                        of << msg_add.id << std::endl;
                                                     //reads
                     }
                     else{//add already send)
@@ -360,12 +418,12 @@ void CentralNode::add(struct msg*req){
                                                      //pending"
     }
     else{//if tree already exist
-        // no father, other tree
+        // no parent, other tree
         if(req->idp == 0){
             //no father we insert at the end
             forest[req->ref].push_back(*req);
         }
-        // if req has a father
+        // if req has a parent
         else{
             // find the parent
             auto parent = std::find_if(forest[req->ref].begin(), 
@@ -373,32 +431,42 @@ void CentralNode::add(struct msg*req){
                                    [&req] (struct msg & v) {
                                         return v.id == req->idp;
                                     });
+                printf("parent : id : %d\n", parent->id);
+                printf("end: id : %d\n", forest[req->ref].back().id);
 
             // insert just before the next parent id different if 
             // find
-            if(forest[req->ref].end() != parent){
-                auto next_parent = std::find_if(parent, 
-                                       forest[req->ref].end(), 
-                                       [&req] (struct msg & v) {
-                                       return v.idp != req->idp;
-                                        });
-                if(parent == forest[req->ref].end()){
-                    //insert at the end
-                    forest[req->ref].push_back(*req);
-                }
-                else
-                    //insert just before the next req with diff idp
-                    forest[req->ref].insert(next_parent, *req);
+            if(parent->id == forest[req->ref].back().id){
+                //insert at the end
+                forest[req->ref].push_back(*req);
+                return;
             }
             else{
-                //if parent is at the end, push_back
-                forest[req->ref].push_back(*req);
+                auto next_parent = std::find_if(++parent, 
+                                       forest[req->ref].end(), 
+                                       [&req] (struct msg & v) {
+                                       if(v.idp == 0 && req->idp ==0){
+                                            return true;
+                                        }
+                                        else{
+                                            return v.idp != req->idp;
+                                        }
+                                        });
+                printf("next_parent : id : %d\n", next_parent->id);
+                    //insert just before the next req with diff idp
+                    if(next_parent == forest[req->ref].end()){
+                        forest[req->ref].push_back(*req);
+                    }
+                    else{
+                        printf("Find : id : %d\n", req->id);
+                        forest[req->ref].insert(next_parent, *req);
+                    }
             }
         }
     }
 }
 
-void CentralNode::first_analyse(struct msg *curent){
+void CentralNode::first_analyse(struct msg *curent, std::ofstream &of){
     
     //update ref's address
     mem_global[curent->ref].add=curent->add;
@@ -411,6 +479,7 @@ void CentralNode::first_analyse(struct msg *curent){
             MPI_Send(&msg_add, 1, msg_type, 
                      curent->node, TAG, MPI_COMM_WORLD);
             add_sent_ornot[curent->id] = 0;//notice sent
+            of << msg_add.id << std::endl;
         }
     }
     else{
@@ -423,15 +492,17 @@ void CentralNode::first_analyse(struct msg *curent){
             MPI_Send(&msg_add, 1, msg_type, 
                      curent->node, TAG, MPI_COMM_WORLD);
             add_sent_ornot[curent->id] = 0;//notice sent
+            of << msg_add.id << std::endl;
         }
     }
 }
 
-void listening(struct info *inf){
+void listening(struct info *inf, std::ofstream& of){
     
     MPI_Status status;
     printf("listening central_node!!!!!!!\n");
     struct msg buf(0,0,0,0,0,0,0,0,0);        ;
+    int cpt_next_epoc =0;
     while(inf->cpt_end_simu != inf->nproc-1){
         //Recv from random node a msg from random type
         MPI_Recv(&buf, 1, msg_type, MPI_ANY_SOURCE, TAG, 
@@ -452,19 +523,19 @@ void listening(struct info *inf){
             case ADD :{
                 printf("CENTRAL_NODE RECV ADD FROM RANK %d\t\n\n",
                         status.MPI_SOURCE);
-                inf->cn.first_analyse(&buf);
+                inf->cn.first_analyse(&buf, of);
             }
                 break;
             case END_TASK:{
                 printf("CENTRAL_NODE RECV END TASK FROM RANK %d\t\n\n",
                         status.MPI_SOURCE);
-                inf->cn.end_task(&buf);
-                inf->cpt_end_simu++;
+                inf->cn.end_task(&buf, of);
+                cpt_next_epoc++;
             }
                 break;
         }
-        if(inf->cpt_end_simu==inf->nproc-1){
-           break; 
+        if(inf->cpt_end_epoc == cpt_next_epoc){
+            break;
         }
     }
 }
@@ -485,7 +556,7 @@ void listening_node(struct info *inf){
             }
             break;
             case ADD :{
-                printf("RANK % dRECV ADD FROM RANK %d\t\n\n",inf->rank,
+                printf("RANK % d RECV ADD FROM RANK %d\t\n\n",inf->rank,
                         status.MPI_SOURCE);
                 handle_address_node(&buf, inf);
             }
