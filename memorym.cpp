@@ -222,22 +222,23 @@ void handle_request_node(struct msg *curent, struct info *inf){ //node receving
     MPI_Send(&msg_add, 1,msg_type, CENTRAL_NODE, TAG, 
              MPI_COMM_WORLD);
 }
+
 void handle_address_node(struct msg *curent, struct info *inf){
     
-    MPI_Win win;
+    /*MPI_Win win;
     MPI_Group comm_group, group;
     int ranks[2];
     ranks[0] = curent->node;    //for forming groups, later
     ranks[1] = curent->node_d;
     MPI_Comm_group(MPI_COMM_WORLD,&comm_group);
-    /*if(curent->rw==W){//write
+    if(curent->rw==W){//write
         if (inf->rank == curent->node_d){//target node
             MPI_Win_create(&inf->n.mem_local[curent->ref].val,
                            sizeof(int),sizeof(int), 
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
 
-        else //if(inf->rank == curent->node){
+        else //if(inf->rank == curent->node)//{
             MPI_Win_create(NULL,0,sizeof(int),
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
@@ -257,7 +258,7 @@ void handle_address_node(struct msg *curent, struct info *inf){
                 dat.add = curent->add;
                 inf->n.mem_local.insert(std::make_pair(curent->ref, dat)); 
             }
-            MPI_Group_incl(comm_group,1,ranks+1,&group);
+            MPI_Group_incl(comm_group, 1, ranks+1,&group);
             //begin the access epoch
             MPI_Win_start(group,0,win);
             //put into target according to my inf->rank
@@ -265,17 +266,16 @@ void handle_address_node(struct msg *curent, struct info *inf){
                     0,1, MPI_INT,win);
             //terminate the access epoch
             MPI_Win_complete(win);
-            struct msg end_t(0,0,0,0,0,0,0,0,0);
-            end_t.type=END_TASK;
-            end_t.rw=curent->rw;
-            end_t.ref=curent->ref;
-            end_t.id=curent->id;
-            //send the endTask msg
+            struct msg end_t = *curent;
+            end_t.type = END_TASK;
             MPI_Send(&end_t, 1, msg_type, 
-                     CENTRAL_NODE, TAG, MPI_COMM_WORLD);
+                         CENTRAL_NODE, TAG, MPI_COMM_WORLD);
+                printf("ACTION WRITE RANK %d\n\n", inf->rank);
         }
     }
-    //else//{//read
+    else{//read
+    printf("OK%d\n", curent->node_d);
+    printf("IN%d\n", inf->rank);
         if (inf->rank == curent->node_d){//target node
             MPI_Win_create(&inf->n.mem_local[curent->ref].val,
                            sizeof(int),sizeof(int), //the data is 
@@ -283,7 +283,7 @@ void handle_address_node(struct msg *curent, struct info *inf){
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
 
-        else //if(inf->rank == curent->nodea){
+        else //if(inf->rank == curent->nodea)//{
             MPI_Win_create(NULL,0,sizeof(int),
                            MPI_INFO_NULL,MPI_COMM_WORLD,&win);
         }
@@ -307,22 +307,18 @@ void handle_address_node(struct msg *curent, struct info *inf){
             //begin the access epoch
             MPI_Win_start(group,0,win);
             //put into target according to my inf->rank
-            MPI_Get(&inf->n.mem_local[curent->ref].val,1,MPI_INT,curent->node_d,
-                    0, 1, MPI_INT,win);
+            MPI_Get(&inf->n.mem_local[curent->ref].val, 1, MPI_INT,curent->node_d, 0, 1, MPI_INT, win);
             //terminate the access epoch
             MPI_Win_complete(win);
-            struct msg end_t(0,0,0,0,0,0,0,0,0);
-            end_t.type=END_TASK;
-            end_t.rw=curent->rw;
-            end_t.ref=curent->ref;
-            end_t.id=curent->id;
-            //send the endTask msg
+            struct msg end_t = *curent;
+            end_t.type = END_TASK;
             MPI_Send(&end_t, 1, msg_type, 
-                     CENTRAL_NODE, TAG, MPI_COMM_WORLD);
+                         CENTRAL_NODE, TAG, MPI_COMM_WORLD);
+                printf("ACTION READ RANK %d\n\n", inf->rank);
         }                                                               
-    }
+    }*/
         //free window and groups
-        MPI_Win_free(&win);
+        /*MPI_Win_free(&win);
         MPI_Group_free(&group);
         MPI_Group_free(&comm_group);*/
         struct msg end_t = *curent;
@@ -337,6 +333,23 @@ void handle_address_node(struct msg *curent, struct info *inf){
         }
 }
 
+/*void handle_address_node2(struct msg *curent, struct info *inf, MPI_Win win){
+    int val;
+    MPI_Aint remote;
+    MPI_Status reqstat;
+    MPI_Send(curent, 1, msg_type, curent->node_d, 
+    MPI_Recv(&remote, 1, MPI_AINT, buf.node_d, 1, MPI_COMM_WORLD, &reqstat );
+    MPI_Get(&val, 1, MPI_INT, 0, remote, 1, MPI_INT, win);
+
+    int *val= &(inf->n.mem_local[curent->ref].val);
+                printf("LAAA%d", inf->rank);
+    MPI_Aint local;
+    MPI_Win_attach(win, val, sizeof(int));
+    MPI_Get_address(&val,  &local);
+    curent->type = WIN;
+    MPI_Send(curent, 1, msg_type, curent->node, 1, MPI_COMM_WORLD);
+    MPI_Send(&local, 1, MPI_AINT, curent->node, 1, MPI_COMM_WORLD);
+}*/
 void CentralNode::end_task(struct msg* et, std::ofstream &of){
     if(et->rw == W){//write's end
             pending_w[et->ref]=1;//no more write pending
@@ -431,8 +444,6 @@ void CentralNode::add(struct msg*req){
                                    [&req] (struct msg & v) {
                                         return v.id == req->idp;
                                     });
-                printf("parent : id : %d\n", parent->id);
-                printf("end: id : %d\n", forest[req->ref].back().id);
 
             // insert just before the next parent id different if 
             // find
@@ -540,7 +551,7 @@ void listening(struct info *inf, std::ofstream& of){
     }
 }
 
-void listening_node(struct info *inf){
+void listening_node(struct info *inf, MPI_Win win){
     MPI_Status status;
     
     struct msg buf(0,0,0,0,0,0,0,0,0); 
@@ -561,9 +572,24 @@ void listening_node(struct info *inf){
                 handle_address_node(&buf, inf);
             }
             break;
+            /*case WIN:{
+                if(inf->rank == buf.node){
+                int val;
+                MPI_Aint remote;
+                MPI_Status reqstat;
+                MPI_Recv(&remote, 1, MPI_AINT, buf.node_d, 1, MPI_COMM_WORLD, &reqstat );
+                MPI_Get(&val, 1, MPI_INT, 0, remote, 1, MPI_INT, win);
+                }
+                else{
+
+                    
+                }
+            }
+            break;*/
         }
-	if(buf.type==END_SIMU)
-		break;
+        if(buf.type==END_SIMU){
+            break;
+        }
     }
     //add msg to the tree if it is a request
     //trigger analyse if it a endChild msg

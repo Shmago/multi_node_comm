@@ -16,7 +16,7 @@
 
 enum operation{R, W, RW};
 enum mode_generation{DIRECT, INDIRECT};
-enum msg_type{MSG, REQUEST, END_CHILD, ADD, END_TASK, ASKING_END, END_SIMU};
+enum msg_type{MSG, REQUEST, END_CHILD, ADD, END_TASK, ASKING_END, END_SIMU, WIN};
 
 
 struct msg{

@@ -1,0 +1,198 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage[margin=1in]{geometry}
+\usepackage{charter}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{epsf}
+\usepackage{courier}
+\usepackage{subfig}
+\usepackage{ulem}
+\usepackage{program}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{array}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{7pt}
+\lstset{language=C++,
+        keywordstyle=\color{blue},
+        basicstyle=\footnotesize\ttfamily,
+        frame=single,
+        stringstyle=,
+        commentstyle=\color{green},
+        morecomment=[l][\color{magenta}]{\#}}
+
+        \title{Ebauche CR}
+\author{Bouhrour Stéphane étudiant UVSQ}
+\date{\today}
+
+\begin{document}
+
+\maketitle{}
+
+\newpage
+\tableofcontents
+
+\newpage
+\section{28/04/2016}
+
+StarPu qu'est-ce que c'est?
+Quel est son état d'avancement?
+En quoi consiste ma mission sur le projet?
+Dans le cadre de ce projet, mon stage consistea à étudier et proposer 
+des solutions de runtime pour l'établissement de communications inter-noeuds
+à l'aide de RDMA (Remote Direct Memory Access)
+pour porter StarPu sur des plateformes mutli-noeuds.
+
+Ces communications doivent gérer les dépendances d'accès aux données des 
+différentes tâches soumises par StarPu.
+La mise en place d'un scheduler de tâches de StarPu inter-noeuds et également 
+requise.
+qu'est-ce qu'une tâche dans StarPu?
+La msie en oeuvre d'un algorithme de cohérence et son implémentation sont 
+les premières parties de la mise en oeuvre du runtime.
+
+Pour l'établissment d'un premier algorithme de coherence de tâches, 
+le flux de tâches a été considéré comme suit :
+-Chaque tâche a été soumise par une tâche parent.
+-Chaque tâche prend en entrée des données sur lesquelles elle effectuera 
+ des opérations de lecture/écriture.
+-Chaque tâche peut soumettre des tâches enfants (exécutable une fois que 
+ la tâche a elle-même fini) pouvant opérer seulement sur les données 
+ accédées par la tâche.
+-Les tâches efféctuant réellement les opérations sont les tâches n'ayant 
+ pas d'enfant (qui ne soumette pas de tâche).
+
+On peut se représenter ce modèle comme une première tâche (racine) soumettant 
+des tâches enfants, dessinant ainsi un arbre de tâche. Chaque tâche ayant un 
+arbre interne représentant ses tâches enfants.
+C'est le scheduler qui se charge de définir les époques de ces tâches : 
+il définit quand est-ce qu'un tâche peut être éxecutable, c'est à dire quelles 
+sont les tâches qui doivent être finis pour qu'une tâche donnée puisse être 
+exécutable.
+
+Une premier proposition d'algorithme de coherence fut de mettre en place un 
+noeud\_central.
+Ce noeud central a connaissance de toutes les références des données 
+stockées au sein de la mémoire locale de chaque noeud.
+Les messages passent tous par ce noeud central qui gère les dépendances.
+Il stocke sous forme de liste chaîné les requêtes qu'ils reçoit selon 
+l'identifiant des parents de chaques tâches et selon leurs ordres d'arrivé.
+Il crée une liste pour chaque référence, représentant ainsi les dépendances 
+sur chaque données.
+
+schema liste et reprensation arbre.
+
+L'algorithme cherche a lancer autant de read à la suite dès que les dépendances 
+le permettent, c'est à dire de démarrer autant de read que possible sans avoir à 
+attendre des requêtes de terminaison.
+Ainsi une notion de Write\_Pending est instaurée bloquant les autres tâches sur la 
+donnée en question si un write a commencé a s'exécuter.
+De ce fait, pour effectuer l'action de toute autre tâches, la réception de la 
+requête de terminaison, du write exécuté s'il y en a un, par le noeud central 
+est requise.
+L'operation d'un noeud sur une donnée est déclenchée à la reception de ce dernier 
+de l'addresse de la donnée communiquée par le noeud destinataire par 
+l'intermediraire du noeud central.
+Autrement dit l'envoie de l'adresse au noeud demandant à opérer sur la donnée 
+pointée par l'adresse représente le déclenchement du traitement de l'opération. 
+
+\section{Protocol de coherence avec Noeud Central}
+\begin{algorithm}
+\caption{$yolo$}
+\begin{algorithmic}
+        %\IF{$noeud == Noeud Central$}
+            %\STATE $d$
+            \IF{$message.type == REQUEST$}
+                \STATE 
+                    $Trie \: liste \: chaînée$
+            \ENDIF
+%           \IF{message.type == END\_CHILD}
+%               send\_or\_not\left[message.id\right] := false
+%               \IF{mem\_global\left[message.reference\right] == NULL}
+%               \mbox{Demande d'adresse au noeud destinataire}
+%                   message.type := REQUEST 
+%                   SEND(message) \: to \: message.target
+%                   send\_or\_not\left[message.id\right] := true
+%               \ENDIF
+%           \ENDIF
+%           \IF{message.type == ADDRESS} 
+%               mem\_global\left[message.reference\right] = message.address
+%               \IF{message.rw == READ}
+%               \IF{pending\_w\left[message.reference\right] == false}
+%                           message.type := adress 
+%                           send(message) \: to \: message.source
+%                           send\_or\_not\left[message.id\right] := true
+%                   \ELSE
+%                   \IF{queu\left[0\right].id := message.id}
+%                           pending\_w\left[message.reference\right] := true 
+%                           \mbox{no dependances}
+%                           message.type := address
+%                           send(msg) \: to \: message.source 
+%                           send\_or\_not\left[message.id\right] := true
+%                       \ENDIF
+%                   \ENDIF
+%               \ENDIF
+%           \ENDIF
+%           \IF{MESSAge.type == end\_task}
+%           \IF{message.rw = write}
+%                   pending\_w\left[messsage.ref\right] := false
+%                   queu\left[message.reference\right].erase(message)
+%                   \IF{queu\left[message.reference\right].empty() == false}        
+%                       \mbox{analyse\_list(message.reference)}
+%                       \IF{pending\_w\left[message.reference\right] == true}
+%                           \mbox{Dependances}
+%                           return
+%                       \ENDIF
+%                       \ELSE 
+%                           \FOR it := queu\left[message.reference\right].begin() \TO queu\left[message.reference\right].end()
+%                           \IF{it.rw == READ}
+%                           \IF{send\_or\_not == false}
+%                                       msg := it
+%                                       msg.type := ADRESS
+%                                       msg.add := 
+%                                       mem\_global\left[it.reference\right]
+%                                       SEND(message) \: to \: message.source
+%                                       send\_or\_not\left[message.id\right] := true
+%                                   \ENDIF
+%                               \ENDIF
+%                               \ELSE
+%                               \IF{queu\left[message.reference\right].begin() == it}
+%                               \IF{send\_or\_not\left[it.id\right] == false}
+%                                       message.type = ADDRESS
+%                                       message.add = mem\_global\left[message.ref\right]
+%                                       SEND(message) \: to \: Central Node
+%                                       pending\_w\left[message.ref\right] = true 
+%                               
+%                           \ENDFOR
+%                   \ENDIF
+%               \ENDIF
+%           \ENDIF
+%       \ENDIF
+%       \ELSE
+%       \mbox{Autres noeuds}
+%       \IF{message.type == REQUEST}
+%          message.address =: mem\_local\left[message.reference\right]
+%          message.type := address
+%          SEND(message) \: to \: Central Node
+%       \ENDIF
+%       \IF {message.type == ADDRESS} 
+%       \IF{message.rw == WRITE} 
+%               MPI\_PUT
+%           \ENDIF
+%           \ELSE
+%               MPI\_GET
+%           message.type := END\_TASK
+%           SEND(message) \: to \: Central Node
+       %\ENDIF
+\begin{algorithm}
+\begin{algorithmic}
+\end{document}
+
+
+
+

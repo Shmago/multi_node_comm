@@ -27,10 +27,12 @@ int main(int argc, char **argv){
     MPI_Comm_size(MPI_COMM_WORLD, &(inf.nproc));
     MPI_Comm_rank(MPI_COMM_WORLD, &(inf.rank));
     int size = inf.nproc-1;
+    MPI_Win win;
+    MPI_Win_create_dynamic(MPI_INFO_NULL, MPI_COMM_WORLD, &win);
     init_memory(size, &inf);
     MPI_Barrier(MPI_COMM_WORLD);
     if(inf.rank != CENTRAL_NODE){
-            listening_node(&inf);
+            listening_node(&inf, win);
     }
     else{
         std::string s;

@@ -16,8 +16,8 @@ public:
     std::map<int, std::list<struct msg> > forest; //one tree per ref
     std::map<int, Data > mem_global; //ref of all datas
     std::map<int, std::list<struct msg> > pending; //request in treatment
-    std::map<int,int> pending_w; //couple of ref, pending_w
-    std::map<int,int> add_sent_ornot; //to know if a address for a request 
+    std::map<int, int> pending_w; //couple of ref, pending_w
+    std::map<int, int> add_sent_ornot; //to know if a address for a request 
                                       //has been already sent
     std::vector<int> food;
     // sort request depth first
@@ -62,9 +62,10 @@ void open_file(std::ifstream &f, std::string s);
 void close_file(std::ifstream &f);
 void close_file(std::ofstream &f);
 void listening(struct info *inf, std::ofstream&);
-void listening_node(struct info *inf);
+void listening_node(struct info *inf, MPI_Win win);
 void handle_request_node(struct msg* req, struct info *inf); //node receving asking 
 void handle_address_node(struct msg* a, struct info *inf);
+void handle_address_node2(struct msg *curent, struct info *inf, MPI_Win win);
 void init_info(int n, struct info *inf);
 void init_memory(int size, struct info *inf);
 void send_first_message(struct info *inf, int n, int mode);
